@@ -1,399 +1,633 @@
 
 import React, { useState, useEffect } from 'react';
-import { PersonaCategory, LibraryItem, ContentCategory, UserPersona } from '../types';
+import { PersonaCategory, LibraryItem, ContentCategory, UserPersona, SellingPoint, ProductPhoto, StyleReference } from '../types';
 import { storageService } from '../services/storageService';
 
 interface ScenarioInputProps {
-  onGenerate: (scenario: string, refImage: string | null, category: ContentCategory, userPersona: UserPersona, selectedContext: LibraryItem[]) => void;
+  initialData: {
+    scenario: string;
+    refImage: string | null;
+    selectedCategory: ContentCategory;
+    userPersona: UserPersona;
+    selectedUSPIds: Set<string>;
+    selectedProductIds: Set<string>;
+    selectedStyleRefIds: Set<string>;
+    selectedContextIds: Set<string>;
+  };
+  onGenerate: (scenario: string, refImage: string | null, category: ContentCategory, userPersona: UserPersona, selectedContext: LibraryItem[], selectedUSP: SellingPoint[], selectedProducts: ProductPhoto[], selectedStyleRefs: StyleReference[]) => void;
+  onUpdateData: (data: any) => void;
   isLoading: boolean;
   onOpenLibrary: () => void;
 }
 
 const BRAND_CATEGORIES: PersonaCategory[] = [
-  { id: 'PRO', name: '专业价值', description: '知识、内幕', icon: 'fa-graduation-cap', group: 'BRAND' },
-  { id: 'TESTIMONIAL', name: '信任见证', description: '晒单、合伙人', icon: 'fa-award', group: 'BRAND' },
-  { id: 'PROMO', name: '品牌促销', description: '福利、新品', icon: 'fa-tags', group: 'BRAND' },
+  { id: 'PRO', name: '专业价值', description: '专业科普与鉴别知识', icon: 'fa-feather', group: 'BRAND' },
+  { id: 'TESTIMONIAL', name: '信任见证', description: '真实口碑与好评分享', icon: 'fa-comments', group: 'BRAND' },
+  { id: 'PROMO', name: '品牌促销', description: '新品动态与限时福利', icon: 'fa-gift', group: 'BRAND' },
 ];
 
 const PERSONAL_CATEGORIES: PersonaCategory[] = [
-  { id: 'LIFE_AESTHETIC', name: '审美格调', description: '看书、插花、美照', icon: 'fa-camera-retro', group: 'PERSONAL' },
-  { id: 'LIFE_THOUGHT', name: '创业碎碎念', description: '感悟、真诚、奋斗', icon: 'fa-lightbulb', group: 'PERSONAL' },
-  { id: 'LIFE_DAILY', name: '烟火气日常', description: '美食、幽默、生活', icon: 'fa-mug-hot', group: 'PERSONAL' },
+  { id: 'LIFE_AESTHETIC', name: '格调生活', description: '生活审美与艺术日常', icon: 'fa-leaf', group: 'PERSONAL' },
+  { id: 'LIFE_THOUGHT', name: '真诚随笔', description: '对生活与事业的思考', icon: 'fa-pen-nib', group: 'PERSONAL' },
+  { id: 'LIFE_DAILY', name: '烟火日常', description: '温暖接地气的碎片记录', icon: 'fa-mug-hot', group: 'PERSONAL' },
 ];
 
 const SYSTEM_PERSONAS: (UserPersona & { icon: string })[] = [
-  { name: '艺术主理人', icon: 'fa-palette', identity: '女性，艺术设计背景的黄酒创业者', traits: ['审美敏感', '知性', '追求极致细节'], background: '曾在上海从事平面设计多年，如今回到家乡绍兴，希望用现代审美重塑黄酒。', isSystem: true },
-  { name: '儒雅文化商', icon: 'fa-book', identity: '男性，热爱传统文化的跨界创业者', traits: ['稳重', '博学', '讲究仪式感'], background: '半辈子在商海打拼，收藏古籍，认为黄酒是中国人血液里的诗意。', isSystem: true },
-  { name: '真诚生活家', icon: 'fa-house-chimney-window', identity: '不限性别，热爱慢生活的社群达人', traits: ['随性', '有幽默感', '接地气'], background: '喜欢折腾各种美食，家里有个小酒窖，相信好酒是拉近人与人距离的最好媒介。', isSystem: true },
+  { 
+    name: '企业菁英', 
+    icon: 'fa-briefcase', 
+    identity: '女性，追求品质生活的企业中高层管理者', 
+    traits: ['干练', '品质', '细腻'], 
+    background: '身处高压职场，更懂得在一杯黄酒中寻找片刻的宁静与生活质感。', 
+    isSystem: true 
+  },
+  { 
+    name: '文化儒商', 
+    icon: 'fa-landmark-dome', 
+    identity: '男性，热爱传统文化的跨领域经营管理者', 
+    traits: ['睿智', '稳重', '有温度'], 
+    background: '对中国传统礼仪有深厚研究，认为每一瓶好酒都是一种文化的承载与流动。', 
+    isSystem: true 
+  },
+  { 
+    name: '生活家', 
+    icon: 'fa-couch', 
+    identity: '不限性别，热爱慢生活、有品质格调的社会人士', 
+    traits: ['亲和', '随性', '有逻辑'], 
+    background: '相信好物必须有灵魂，通过分享真实的饮用体验，让高品质黄酒触手及。', 
+    isSystem: true 
+  },
 ];
 
-const ScenarioInput: React.FC<ScenarioInputProps> = ({ onGenerate, isLoading, onOpenLibrary }) => {
-  const [scenario, setScenario] = useState('');
-  const [refImage, setRefImage] = useState<string | null>(null);
-  const [selectedCategory, setSelectedCategory] = useState<ContentCategory>('PRO');
-  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
-  const [selectedContextIds, setSelectedContextIds] = useState<Set<string>>(new Set());
-
-  // Persona State
-  const [userPersona, setUserPersona] = useState<UserPersona>(SYSTEM_PERSONAS[0]);
-  const [savedPersonas, setSavedPersonas] = useState<UserPersona[]>([]);
+const ScenarioInput: React.FC<ScenarioInputProps> = ({ initialData, onGenerate, onUpdateData, isLoading, onOpenLibrary }) => {
+  const [activeTab, setActiveTab] = useState<'persona' | 'foundation' | 'visual' | 'scenario'>('persona');
+  
+  const [scenario, setScenario] = useState(initialData.scenario);
+  const [refImage, setRefImage] = useState<string | null>(initialData.refImage); 
+  const [selectedCategory, setSelectedCategory] = useState<ContentCategory>(initialData.selectedCategory);
+  const [userPersona, setUserPersona] = useState<UserPersona>(initialData.userPersona);
   const [isCustomPersona, setIsCustomPersona] = useState(false);
-  const [isEditingExisting, setIsEditingExisting] = useState(false);
   const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const [savedPersonas, setSavedPersonas] = useState<UserPersona[]>([]);
+
+  const [sellingPoints, setSellingPoints] = useState<SellingPoint[]>([]);
+  const [selectedUSPIds, setSelectedUSPIds] = useState<Set<string>>(initialData.selectedUSPIds);
+  const [isAddingUSP, setIsAddingUSP] = useState(false);
+  const [newUSPText, setNewUSPText] = useState('');
+
+  const [productPhotos, setProductPhotos] = useState<ProductPhoto[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<string>>(initialData.selectedProductIds);
+
+  const [styleRefs, setStyleRefs] = useState<StyleReference[]>([]);
+  const [selectedStyleRefIds, setSelectedStyleRefIds] = useState<Set<string>>(initialData.selectedStyleRefIds);
+
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
+  const [selectedContextIds, setSelectedContextIds] = useState<Set<string>>(initialData.selectedContextIds);
 
   useEffect(() => {
+    // 强制从存储加载数据，确保在用户切换后数据正确
+    setSellingPoints(storageService.getSellingPoints());
+    setProductPhotos(storageService.getProductPhotos());
+    setStyleRefs(storageService.getStyleReferences());
     setLibraryItems(storageService.getItems());
-    const saved = storageService.getSavedPersonas();
-    setSavedPersonas(saved);
-    // 如果已有保存的人设，默认选中第一个保存的；否则选中第一个系统预设
-    if (saved.length > 0) {
-      setUserPersona(saved[0]);
-    } else {
-      setUserPersona(SYSTEM_PERSONAS[0]);
-    }
+    setSavedPersonas(storageService.getSavedPersonas());
   }, []);
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => setRefImage(reader.result as string);
-      reader.readAsDataURL(file);
-    }
+  useEffect(() => {
+    onUpdateData({
+      scenario,
+      refImage,
+      selectedCategory,
+      userPersona,
+      selectedUSPIds,
+      selectedProductIds,
+      selectedStyleRefIds,
+      selectedContextIds
+    });
+  }, [scenario, refImage, selectedCategory, userPersona, selectedUSPIds, selectedProductIds, selectedStyleRefIds, selectedContextIds]);
+
+  const compressForStorage = (base64: string, maxWidth = 800): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        if (width > maxWidth) {
+          height *= maxWidth / width;
+          width = maxWidth;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.imageSmoothingEnabled = true;
+          ctx.imageSmoothingQuality = 'medium';
+          ctx.drawImage(img, 0, 0, width, height);
+        }
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+    });
   };
 
   const handleSavePersona = () => {
-    if (!userPersona.name?.trim() || !userPersona.identity?.trim() || !userPersona.background?.trim()) {
-      alert("请完整填写人设名称、核心身份和背景经历。");
+    if (!userPersona.name || !userPersona.identity || !userPersona.background) {
+      alert("请完整填写人设信息。");
       return;
     }
     setSaveStatus('saving');
-    
-    const toSave = { 
-      ...userPersona, 
-      name: userPersona.name.trim(),
-      isSystem: false 
-    };
-    const saved = storageService.savePersona(toSave);
-    
+    const saved = storageService.savePersona(userPersona);
     setSavedPersonas(storageService.getSavedPersonas());
-    setUserPersona(saved);
     setSaveStatus('saved');
-    setIsEditingExisting(false);
-    
     setTimeout(() => {
       setSaveStatus('idle');
       setIsCustomPersona(false);
+      setUserPersona(saved);
     }, 1500);
   };
 
-  const handleEditPersona = (e: React.MouseEvent, persona: UserPersona) => {
+  const handleDeleteSavedPersona = (id: string, e: React.MouseEvent) => {
     e.stopPropagation();
-    setUserPersona({...persona}); // 使用副本避免直接修改状态
-    setIsCustomPersona(true);
-    setIsEditingExisting(true);
-  };
-
-  const handleDeletePersona = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    if (confirm("确定要删除这个人设模板吗？")) {
+    if (confirm("确定要删除这个人设档案吗？")) {
       storageService.deletePersona(id);
-      const updated = storageService.getSavedPersonas();
-      setSavedPersonas(updated);
-      // 如果删除的是当前选中的，回退到默认系统人设
+      setSavedPersonas(storageService.getSavedPersonas());
       if (userPersona.id === id) {
         setUserPersona(SYSTEM_PERSONAS[0]);
       }
     }
   };
 
-  const handleGenerateClick = () => {
-    const contextItems = libraryItems.filter(item => selectedContextIds.has(item.id));
-    onGenerate(scenario, refImage, selectedCategory, userPersona, contextItems);
+  const toggleUSP = (id: string) => {
+    const next = new Set(selectedUSPIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedUSPIds(next);
   };
 
-  // 合并人设列表用于展示
-  const allPersonas = [...savedPersonas, ...SYSTEM_PERSONAS];
-
-  // 关键修复：人设比对逻辑
-  const checkIsSelected = (p: UserPersona) => {
-    if (p.id) {
-      return userPersona.id === p.id;
+  const handleDeleteUSP = (id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (confirm("确定要删除这个卖点吗？")) {
+      storageService.deleteSellingPoint(id);
+      setSellingPoints(storageService.getSellingPoints());
+      const next = new Set(selectedUSPIds);
+      next.delete(id);
+      setSelectedUSPIds(next);
     }
-    // 对于没有 ID 的系统人设，通过名称比对，且确保当前选中的也没有 ID
-    return !userPersona.id && userPersona.name === p.name;
+  };
+
+  const handleSaveNewUSP = () => {
+    if (!newUSPText.trim()) return;
+    storageService.addSellingPoint(newUSPText.trim());
+    setSellingPoints(storageService.getSellingPoints());
+    setNewUSPText('');
+    setIsAddingUSP(false);
+  };
+
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, type: 'product' | 'style') => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 10 * 1024 * 1024) {
+        alert("图片太大（超过10MB），请选择较小的图片。");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = async () => {
+        const compressed = await compressForStorage(reader.result as string);
+        if (type === 'product') {
+          storageService.saveProductPhoto(compressed);
+          setProductPhotos(storageService.getProductPhotos());
+        } else {
+          storageService.saveStyleReference(compressed);
+          setStyleRefs(storageService.getStyleReferences());
+        }
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleDeleteProduct = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // 借鉴视觉捕捉模块，确保 UI 响应迅速且删除逻辑彻底
+    storageService.deleteProductPhoto(id);
+    setProductPhotos(prev => prev.filter(p => p.id !== id));
+    setSelectedProductIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const handleDeleteStyle = (e: React.MouseEvent, id: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    storageService.deleteStyleReference(id);
+    setStyleRefs(prev => prev.filter(s => s.id !== id));
+    setSelectedStyleRefIds(prev => {
+      const next = new Set(prev);
+      next.delete(id);
+      return next;
+    });
+  };
+
+  const toggleStyleSelect = (id: string) => {
+    setSelectedStyleRefIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleProductSelect = (id: string) => {
+    setSelectedProductIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const handleGenerateClick = () => {
+    const context = libraryItems.filter(i => selectedContextIds.has(i.id));
+    const usp = sellingPoints.filter(s => selectedUSPIds.has(s.id));
+    const products = productPhotos.filter(p => selectedProductIds.has(p.id));
+    const styles = styleRefs.filter(r => selectedStyleRefIds.has(r.id));
+    onGenerate(scenario, refImage, selectedCategory, userPersona, context, usp, products, styles);
   };
 
   return (
-    <div className="animate-fade-in space-y-8">
-      {/* 1. User Identity Module */}
-      <div className="bg-amber-900 text-white p-8 rounded-[2.5rem] shadow-2xl relative overflow-hidden">
-        <div className="absolute top-0 right-0 w-64 h-64 bg-amber-800/20 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
-        <div className="relative z-10 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-xl font-black flex items-center gap-3">
-              <i className="fas fa-id-card text-amber-400"></i>
-              {isEditingExisting ? '正在优化画像模板' : (isCustomPersona ? '自定义私域画像' : '我的私域画像')}
-            </h2>
-            <div className="flex bg-amber-800/50 p-1 rounded-xl">
-              <button 
-                onClick={() => { setIsCustomPersona(false); setIsEditingExisting(false); }}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${!isCustomPersona ? 'bg-amber-500 text-white' : 'text-amber-200 hover:text-white'}`}
-              >
-                快速选择
-              </button>
-              <button 
-                onClick={() => {
-                  if (!isCustomPersona) {
-                    // 进入新建模式时重置
-                    setUserPersona({ name: '', identity: '', traits: [], background: '' });
-                  }
-                  setIsCustomPersona(true);
-                }}
-                className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${isCustomPersona ? 'bg-amber-500 text-white' : 'text-amber-200 hover:text-white'}`}
-              >
-                {isEditingExisting ? '正在编辑' : '深度定义'}
-              </button>
-            </div>
-          </div>
+    <div className="animate-fade-in space-y-6 pb-20">
+      <div className="flex bg-white p-2 rounded-2xl shadow-sm border border-slate-100 overflow-x-auto no-scrollbar">
+        {[
+          { id: 'persona', label: '1.身份设定', icon: 'fa-id-card-clip' },
+          { id: 'foundation', label: '2.核心依据', icon: 'fa-database' },
+          { id: 'visual', label: '3.视觉素材', icon: 'fa-images' },
+          { id: 'scenario', label: '4.内容灵感', icon: 'fa-feather-pointed' },
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => setActiveTab(tab.id as any)}
+            className={`flex-1 min-w-[100px] flex items-center justify-center gap-2 py-3 rounded-xl text-xs font-black transition-all ${
+              activeTab === tab.id ? 'bg-amber-600 text-white shadow-lg' : 'text-slate-400 hover:text-amber-600'
+            }`}
+          >
+            <i className={`fas ${tab.icon}`}></i>
+            {tab.label}
+          </button>
+        ))}
+      </div>
 
-          {!isCustomPersona ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-3 max-h-[300px] overflow-y-auto pr-2 scrollbar-hide">
-              {allPersonas.map((p, idx) => {
-                const isSelected = checkIsSelected(p);
-                return (
-                  <button
-                    key={p.id || `sys-${idx}`}
-                    onClick={() => {
-                      setUserPersona(p);
-                      setIsEditingExisting(false);
-                    }}
-                    className={`p-4 rounded-2xl border-2 transition-all text-left group relative cursor-pointer ${
-                      isSelected 
-                      ? 'bg-white border-amber-400 shadow-[0_0_15px_rgba(251,191,36,0.3)] scale-[1.02]' 
-                      : 'bg-amber-800/30 border-amber-700/50 hover:border-amber-500 hover:bg-amber-800/40'
-                    }`}
-                  >
-                    <i className={`fas ${p.isSystem ? (p as any).icon : 'fa-user-tag'} mb-3 block text-xl ${isSelected ? 'text-amber-600' : 'text-amber-400'}`}></i>
-                    <div className={`text-sm font-black truncate ${isSelected ? 'text-slate-900' : 'text-white'}`}>{p.name}</div>
-                    <div className={`text-[10px] mt-1 line-clamp-1 ${isSelected ? 'text-slate-500' : 'text-amber-200/60'}`}>{p.identity}</div>
-                    
-                    {!p.isSystem && (
-                      <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-all">
-                        <div 
-                          onClick={(e) => handleEditPersona(e, p)}
-                          className="bg-amber-500/90 p-1.5 rounded-lg text-white hover:bg-amber-400 shadow-lg"
-                        >
-                          <i className="fas fa-pen-to-square text-[10px]"></i>
-                        </div>
-                        <div 
-                          onClick={(e) => handleDeletePersona(e, p.id!)}
-                          className="bg-red-500/90 p-1.5 rounded-lg text-white hover:bg-red-400 shadow-lg"
-                        >
-                          <i className="fas fa-trash-can text-[10px]"></i>
-                        </div>
+      <div className="bg-white p-8 rounded-[2.5rem] shadow-sm border border-slate-100 min-h-[500px] relative">
+        {activeTab === 'persona' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="flex items-center justify-between">
+               <h3 className="text-xl font-black text-slate-800 flex items-center gap-2">
+                  <i className="fas fa-id-badge text-amber-500"></i>
+                  超级终端人设档案
+               </h3>
+               <div className="flex gap-2">
+                 <button 
+                   onClick={() => setIsCustomPersona(!isCustomPersona)} 
+                   className={`text-[10px] px-4 py-2 rounded-xl font-black transition-all ${
+                     isCustomPersona ? 'bg-slate-800 text-white' : 'bg-amber-50 text-amber-600 border border-amber-200'
+                   }`}
+                 >
+                   {isCustomPersona ? '取消定制' : '定制新角色'}
+                 </button>
+               </div>
+            </div>
+
+            {!isCustomPersona ? (
+              <div className="space-y-8 animate-fade-in">
+                <div className="space-y-4">
+                  <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest">系统预设人设</div>
+                  <div className="grid grid-cols-3 gap-4">
+                    {SYSTEM_PERSONAS.map((p, idx) => (
+                      <button 
+                        key={idx} 
+                        onClick={() => setUserPersona(p)} 
+                        className={`p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-2 ${
+                          userPersona.name === p.name 
+                          ? 'bg-amber-50 border-amber-600 ring-2 ring-amber-100' 
+                          : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-amber-200 hover:bg-white'
+                        }`}
+                      >
+                        <i className={`fas ${p.icon} text-2xl ${userPersona.name === p.name ? 'text-amber-600' : 'text-slate-300'}`}></i>
+                        <span className={`text-xs font-black ${userPersona.name === p.name ? 'text-amber-900' : 'text-slate-500'}`}>{p.name}</span>
+                        <span className={`text-[9px] font-medium opacity-60 line-clamp-2 text-center leading-tight ${userPersona.name === p.name ? 'text-amber-700' : 'text-slate-400'}`}>
+                           {p.identity}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+
+                  {savedPersonas.length > 0 && (
+                    <>
+                      <div className="text-[10px] font-black text-slate-400 uppercase tracking-widest pt-4">我收藏的角色</div>
+                      <div className="grid grid-cols-3 gap-4">
+                        {savedPersonas.map((p) => (
+                          <div key={p.id} className="relative group">
+                            <button 
+                              onClick={() => setUserPersona(p)} 
+                              className={`w-full p-6 rounded-3xl border-2 transition-all flex flex-col items-center gap-2 ${
+                                userPersona.id === p.id 
+                                ? 'bg-amber-50 border-amber-600 ring-2 ring-amber-100' 
+                                : 'bg-slate-50 border-slate-100 text-slate-400 hover:border-amber-200 hover:bg-white'
+                              }`}
+                            >
+                              <i className={`fas fa-user-pen text-2xl ${userPersona.id === p.id ? 'text-amber-600' : 'text-slate-300'}`}></i>
+                              <span className={`text-xs font-black ${userPersona.id === p.id ? 'text-amber-900' : 'text-slate-500'}`}>{p.name}</span>
+                              <span className={`text-[9px] font-medium opacity-60 text-center ${userPersona.id === p.id ? 'text-amber-700' : 'text-slate-400'}`}>
+                                 自定义人设
+                              </span>
+                            </button>
+                            <button 
+                              onClick={(e) => handleDeleteSavedPersona(p.id!, e)}
+                              className="absolute -top-1 -right-1 w-6 h-6 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-lg z-10"
+                            >
+                              <i className="fas fa-trash-can text-[10px]"></i>
+                            </button>
+                          </div>
+                        ))}
                       </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="space-y-6 animate-fade-in">
-              {/* Persona Name input for clear naming */}
-              <div className="bg-amber-800/20 p-5 rounded-2xl border border-amber-700/50">
-                <label className="block text-[10px] font-bold text-amber-200/60 mb-2 uppercase tracking-widest flex items-center gap-2">
-                  <i className="fas fa-tag"></i> 人设模板名称
-                </label>
-                <input 
-                  type="text" 
-                  placeholder="起个好记的名字，如：秋季知性版、创业日常版..."
-                  value={userPersona.name || ''}
-                  onChange={(e) => setUserPersona({...userPersona, name: e.target.value})}
-                  className="w-full bg-amber-800/30 border border-amber-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none text-white placeholder:text-amber-700/80 transition-all font-bold"
-                />
-              </div>
+                    </>
+                  )}
+                </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-5">
-                  <div className="group">
-                    <label className="block text-[10px] font-bold text-amber-200/60 mb-2 uppercase tracking-widest">
-                      1. 核心身份定义
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="例如：95后海归、绍兴女儿、退休建筑师..."
-                      value={userPersona.identity}
-                      onChange={(e) => setUserPersona({...userPersona, identity: e.target.value})}
-                      className="w-full bg-amber-800/30 border border-amber-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none text-white placeholder:text-amber-700/80 transition-all"
-                    />
-                    <p className="text-[9px] text-amber-400/40 mt-1.5 ml-1">💡 填写建议：[性别/年龄段] + [职业标签] + [特定背景]</p>
+                <div className="bg-slate-50 rounded-[2.5rem] p-10 border border-slate-200 relative overflow-hidden">
+                  <div className="absolute top-0 right-0 p-10 opacity-5">
+                    <i className="fas fa-id-card text-8xl"></i>
                   </div>
-                  <div className="group">
-                    <label className="block text-[10px] font-bold text-amber-200/60 mb-2 uppercase tracking-widest">
-                      2. 性格标签
-                    </label>
-                    <input 
-                      type="text" 
-                      placeholder="例如：温婉、硬核、追求极致、接地气..."
-                      value={userPersona.traits.join('、')}
-                      onChange={(e) => setUserPersona({...userPersona, traits: e.target.value.split(/[、,，;；]/).filter(t => t.trim())})}
-                      className="w-full bg-amber-800/30 border border-amber-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none text-white placeholder:text-amber-700/80 transition-all"
-                    />
-                    <p className="text-[9px] text-amber-400/40 mt-1.5 ml-1">💡 填写建议：描述你的处事风格和谈吐基调</p>
+                  <div className="relative z-10 space-y-6">
+                    <div className="flex items-center gap-5">
+                      <div className="w-16 h-16 bg-white border-2 border-amber-100 rounded-2xl flex items-center justify-center shadow-sm">
+                        <i className={`fas ${(userPersona as any).icon || 'fa-user-check'} text-2xl text-amber-600`}></i>
+                      </div>
+                      <div>
+                        <div className="text-2xl font-black text-slate-800 tracking-tight">{userPersona.name}</div>
+                        <div className="text-xs font-bold text-amber-600 mt-1">{userPersona.identity}</div>
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 pt-6 border-t border-slate-200">
+                      <div className="space-y-3">
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">性格特质</span>
+                         <div className="flex flex-wrap gap-2">
+                            {(userPersona.traits || []).map((t, i) => (
+                              <span key={i} className="px-3 py-1 bg-amber-100/50 text-amber-900 rounded-lg text-[10px] font-bold border border-amber-200/50">{t}</span>
+                            ))}
+                         </div>
+                      </div>
+
+                      <div className="space-y-3">
+                         <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">核心背景</span>
+                         <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                            {userPersona.background}
+                         </p>
+                      </div>
+                    </div>
                   </div>
                 </div>
-                <div className="group flex flex-col">
-                  <label className="block text-[10px] font-bold text-amber-200/60 mb-2 uppercase tracking-widest">
-                    3. 详细背景经历
-                  </label>
+              </div>
+            ) : (
+              <div className="bg-slate-50 rounded-[2.5rem] p-8 border border-slate-100 space-y-6 animate-fade-in">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">角色代号</label>
+                    <input 
+                      placeholder="例如：汉中酿造大师" 
+                      value={userPersona.name} 
+                      onChange={e => setUserPersona({...userPersona, name: e.target.value})} 
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-amber-500" 
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-2">性格关键词</label>
+                    <input 
+                      placeholder="温婉, 睿智, 真实" 
+                      value={userPersona.traits.join(',')} 
+                      onChange={e => setUserPersona({...userPersona, traits: e.target.value.split(',')})} 
+                      className="w-full bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-amber-500" 
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">身份核心定位</label>
                   <textarea 
-                    placeholder="描述你的故事，越具体AI越能写出你的灵魂..."
-                    value={userPersona.background}
-                    onChange={(e) => setUserPersona({...userPersona, background: e.target.value})}
-                    className="w-full flex-1 min-h-[120px] bg-amber-800/30 border border-amber-700 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-amber-500 outline-none text-white placeholder:text-amber-700/80 resize-none transition-all leading-relaxed"
+                    placeholder="描述推荐官的核心使命与身份..." 
+                    value={userPersona.identity} 
+                    onChange={e => setUserPersona({...userPersona, identity: e.target.value})} 
+                    className="w-full h-24 bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-amber-500 resize-none" 
                   />
-                  <p className="text-[9px] text-amber-400/40 mt-1.5 ml-1">💡 填写建议：过往经历如何影响了你对黄酒/生活的看法</p>
                 </div>
-              </div>
-              <div className="flex justify-between items-center pt-2">
-                <button 
-                  onClick={() => { setIsCustomPersona(false); setIsEditingExisting(false); }}
-                  className="text-amber-200/50 hover:text-white text-xs font-bold transition-colors"
-                >
-                  放弃编辑
-                </button>
-                <button 
-                  onClick={handleSavePersona}
-                  className={`flex items-center gap-2 px-8 py-3 rounded-xl font-black text-xs transition-all shadow-xl ${
-                    saveStatus === 'saved' 
-                    ? 'bg-green-500 text-white' 
-                    : 'bg-amber-500 text-white hover:bg-amber-400 active:scale-95'
-                  }`}
-                >
-                  <i className={`fas ${saveStatus === 'saved' ? 'fa-check' : (saveStatus === 'saving' ? 'fa-circle-notch animate-spin' : 'fa-floppy-disk')}`}></i>
-                  {saveStatus === 'saved' ? '保存成功' : (isEditingExisting ? '保存修改' : '存为常用人设')}
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between px-2">
-        <h2 className="text-xl font-bold text-slate-800">内容工作台</h2>
-        <button 
-          onClick={onOpenLibrary}
-          className="flex items-center gap-2 text-sm font-bold text-amber-600 bg-amber-50 px-4 py-2 rounded-xl hover:bg-amber-100 transition-colors"
-        >
-          <i className="fas fa-box-archive"></i>
-          灵感库 ({libraryItems.length})
-        </button>
-      </div>
-
-      <div className="bg-white p-8 rounded-3xl shadow-sm border border-slate-100 space-y-10">
-        {/* Dual Track Category Selector */}
-        <div>
-          <label className="block text-sm font-bold text-slate-700 mb-6 flex items-center gap-2">
-            <i className="fas fa-layer-group text-amber-500"></i>
-            1. 确定本次创作的维度
-          </label>
-          
-          <div className="space-y-8">
-            {/* BRAND GROUP */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 px-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-amber-600"></span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">维度 A：黄酒主理人身份 (Brand)</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {BRAND_CATEGORIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCategory(c.id)}
-                    className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
-                      selectedCategory === c.id 
-                      ? 'bg-amber-50 border-amber-500 ring-4 ring-amber-500/10' 
-                      : 'bg-white border-slate-100 hover:border-slate-300'
-                    }`}
-                  >
-                    <i className={`fas ${c.icon} text-lg ${selectedCategory === c.id ? 'text-amber-600' : 'text-slate-400'}`}></i>
-                    <div className={`text-xs font-bold ${selectedCategory === c.id ? 'text-amber-900' : 'text-slate-700'}`}>{c.name}</div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-slate-400 uppercase ml-2">成长背景故事</label>
+                  <textarea 
+                    placeholder="描述该角色的生活阅历与专业积淀..." 
+                    value={userPersona.background} 
+                    onChange={e => setUserPersona({...userPersona, background: e.target.value})} 
+                    className="w-full h-24 bg-white border border-slate-200 rounded-2xl px-6 py-4 text-sm outline-none focus:ring-2 focus:ring-amber-500 resize-none" 
+                  />
+                </div>
+                <div className="flex justify-end pt-4">
+                  <button onClick={handleSavePersona} className="bg-amber-600 text-white px-10 py-4 rounded-2xl font-black text-sm shadow-xl shadow-amber-100 flex items-center gap-2">
+                    {saveStatus === 'saving' ? <i className="fas fa-circle-notch animate-spin"></i> : <i className="fas fa-check"></i>}
+                    {saveStatus === 'saved' ? '保存成功' : '应用并保存人设'}
                   </button>
-                ))}
+                </div>
               </div>
-            </div>
+            )}
 
-            {/* PERSONAL GROUP */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2 px-2">
-                <span className="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
-                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">维度 B：真实生活者面貌 (Persona)</span>
-              </div>
-              <div className="grid grid-cols-3 gap-3">
-                {PERSONAL_CATEGORIES.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setSelectedCategory(c.id)}
-                    className={`p-4 rounded-2xl border transition-all flex flex-col items-center gap-2 ${
-                      selectedCategory === c.id 
-                      ? 'bg-orange-50 border-orange-500 ring-4 orange-500/10' 
-                      : 'bg-white border-slate-100 hover:border-slate-300'
-                    }`}
-                  >
-                    <i className={`fas ${c.icon} text-lg ${selectedCategory === c.id ? 'text-orange-600' : 'text-slate-400'}`}></i>
-                    <div className={`text-xs font-bold ${selectedCategory === c.id ? 'text-orange-900' : 'text-slate-700'}`}>{c.name}</div>
+            <div className="flex justify-end pt-4">
+              <button onClick={() => setActiveTab('foundation')} className="flex items-center gap-2 px-8 py-4 bg-amber-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100">
+                下一步：核心依据 <i className="fas fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'foundation' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="space-y-6">
+              <label className="block text-base font-black text-slate-800 flex items-center justify-between">
+                <span className="flex items-center gap-2"><i className="fas fa-certificate text-amber-500"></i> 产品核心卖点</span>
+              </label>
+              <div className="flex flex-wrap gap-2">
+                {sellingPoints.map(usp => (
+                  <div key={usp.id} className="relative group">
+                    <button onClick={() => toggleUSP(usp.id)} className={`px-4 py-2.5 rounded-xl border text-xs font-bold transition-all pr-8 ${selectedUSPIds.has(usp.id) ? 'bg-amber-600 text-white border-amber-600 shadow-md' : 'bg-slate-50 text-slate-500 border-slate-100'}`}>
+                      {usp.text}
+                    </button>
+                    <button onClick={(e) => handleDeleteUSP(usp.id, e)} className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <i className="fas fa-times text-[8px]"></i>
+                    </button>
+                  </div>
+                ))}
+                {isAddingUSP ? (
+                  <div className="flex items-center gap-2">
+                    <input autoFocus placeholder="输入新卖点..." value={newUSPText} onChange={e => setNewUSPText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSaveNewUSP()} className="bg-slate-50 border border-amber-200 rounded-xl px-4 py-2 text-xs text-slate-700 outline-none" />
+                    <button onClick={handleSaveNewUSP} className="bg-amber-600 text-white px-3 py-2 rounded-xl text-xs font-black">添加</button>
+                  </div>
+                ) : (
+                  <button onClick={() => setIsAddingUSP(true)} className="px-4 py-2.5 rounded-xl border border-dashed border-slate-300 text-slate-400 text-xs font-bold hover:border-amber-400 flex items-center gap-1">
+                    <i className="fas fa-plus"></i> 自定义卖点
                   </button>
-                ))}
+                )}
               </div>
             </div>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-6 border-t border-slate-50">
-          <div className="md:col-span-2">
-            <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <i className="fas fa-feather-pointed text-amber-500"></i>
-              2. 发生了什么好玩的？
-            </label>
-            <textarea
-              value={scenario}
-              onChange={(e) => setScenario(e.target.value)}
-              placeholder={PERSONAL_CATEGORIES.some(c => c.id === selectedCategory) ? "聊聊今天的生活细节（如：清晨的咖啡、路边的夕阳、创业的小纠结...）" : "描述黄酒相关的场景（如：给客户寄样、研发新品的口感调试、分享黄酒干货...）"}
-              className="w-full h-44 p-5 bg-slate-50 border border-slate-200 rounded-3xl focus:ring-2 focus:ring-amber-500 outline-none transition-all resize-none text-slate-700 leading-relaxed"
-            />
-          </div>
-          
-          <div>
-            <label className="block text-sm font-bold text-slate-700 mb-4 flex items-center gap-2">
-              <i className="fas fa-image text-amber-500"></i>
-              3. 视觉捕捉
-            </label>
-            <div className="relative border-2 border-dashed border-slate-200 rounded-3xl h-44 hover:border-amber-400 transition-all flex items-center justify-center overflow-hidden bg-slate-50 group">
-              {refImage ? (
-                <div className="relative w-full h-full">
-                  <img src={refImage} alt="Reference" className="w-full h-full object-cover" />
-                  <button onClick={() => setRefImage(null)} className="absolute top-3 right-3 bg-red-500/80 backdrop-blur text-white w-8 h-8 rounded-full flex items-center justify-center hover:bg-red-600 transition-colors"><i className="fas fa-times text-xs"></i></button>
-                </div>
-              ) : (
-                <div className="text-center p-4">
-                  <i className="fas fa-camera-retro text-slate-300 text-3xl mb-3 group-hover:scale-110 transition-transform"></i>
-                  <p className="text-[10px] text-slate-400 font-bold">点击上传灵感原图</p>
-                  <input type="file" onChange={handleFileChange} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" />
-                </div>
-              )}
+            <div className="flex justify-between pt-6 border-t border-slate-50">
+              <button onClick={() => setActiveTab('persona')} className="text-slate-400 font-bold text-sm">上一步</button>
+              <button onClick={() => setActiveTab('visual')} className="flex items-center gap-2 px-8 py-4 bg-amber-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100">
+                下一步：视觉素材 <i className="fas fa-arrow-right"></i>
+              </button>
             </div>
           </div>
-        </div>
+        )}
 
-        <button
-          onClick={handleGenerateClick}
-          disabled={!scenario.trim() || isLoading}
-          className="w-full py-5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white rounded-[2rem] font-black shadow-xl shadow-amber-100 transition-all flex items-center justify-center gap-3 text-lg"
-        >
-          {isLoading ? <i className="fas fa-circle-notch animate-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}
-          开始定制创作
-        </button>
+        {activeTab === 'visual' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-slate-800 flex flex-col gap-1 uppercase tracking-tighter">
+                  <span className="flex items-center gap-2"><i className="fas fa-camera text-amber-500"></i> 视觉捕捉 (场景)</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-bold">拍摄真实环境图</span>
+                </label>
+                <div className="relative border-2 border-dashed border-slate-200 rounded-3xl h-44 flex items-center justify-center bg-slate-50 group overflow-hidden">
+                  {refImage ? (
+                    <div className="w-full h-full relative">
+                      <img src={refImage} className="w-full h-full object-cover" />
+                      <button onClick={() => setRefImage(null)} className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center z-20"><i className="fas fa-times text-[10px]"></i></button>
+                    </div>
+                  ) : (
+                    <div className="text-center p-4">
+                      <i className="fas fa-camera-retro text-slate-300 text-2xl mb-2"></i>
+                      <input type="file" onChange={e => {
+                        const file = e.target.files?.[0];
+                        if(file) {
+                          const r = new FileReader();
+                          r.onloadend = () => setRefImage(r.result as string);
+                          r.readAsDataURL(file);
+                        }
+                      }} className="absolute inset-0 opacity-0 cursor-pointer" accept="image/*" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-slate-800 flex flex-col gap-1 uppercase tracking-tighter">
+                  <span className="flex items-center gap-2"><i className="fas fa-wand-magic-sparkles text-amber-500"></i> 创意参考 (风格)</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-bold">支持最大 10MB 文件</span>
+                </label>
+                <div className="bg-slate-50 rounded-3xl p-4 border border-slate-100 h-44 overflow-y-auto scrollbar-hide">
+                  <div className="grid grid-cols-3 gap-2">
+                    {styleRefs.map(ref => (
+                      <div key={ref.id} className="relative group">
+                        <div 
+                          onClick={() => toggleStyleSelect(ref.id)} 
+                          className={`relative aspect-square w-full rounded-xl border-2 overflow-hidden transition-all cursor-pointer ${selectedStyleRefIds.has(ref.id) ? 'border-amber-500 ring-2 ring-amber-500/10' : 'border-transparent hover:border-amber-200'}`}
+                        >
+                          <img src={ref.url} className="w-full h-full object-cover pointer-events-none" />
+                        </div>
+                        <button 
+                          onClick={(e) => handleDeleteStyle(e, ref.id)} 
+                          type="button"
+                          className="absolute -top-1 -right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center z-20 shadow-md transition-all cursor-pointer hover:scale-110 active:scale-95 border-2 border-white"
+                        >
+                          <i className="fas fa-trash-can text-[10px] pointer-events-none"></i>
+                        </button>
+                      </div>
+                    ))}
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-amber-400 cursor-pointer text-slate-300">
+                      <i className="fas fa-plus"></i>
+                      <input type="file" onChange={e => handlePhotoUpload(e, 'style')} className="hidden" accept="image/*" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <label className="block text-sm font-black text-slate-800 flex flex-col gap-1 uppercase tracking-tighter">
+                  <span className="flex items-center gap-2"><i className="fas fa-wine-bottle text-amber-500"></i> 品牌图库 (产品)</span>
+                  <span className="text-[10px] text-slate-400 normal-case font-bold">支持最大 10MB 文件</span>
+                </label>
+                <div className="bg-slate-50 rounded-3xl p-4 border border-slate-100 h-44 overflow-y-auto scrollbar-hide">
+                  <div className="grid grid-cols-3 gap-2">
+                    {productPhotos.map(photo => (
+                      <div key={photo.id} className="relative group">
+                        <div 
+                          onClick={() => toggleProductSelect(photo.id)} 
+                          className={`aspect-square w-full rounded-xl border-2 overflow-hidden relative transition-all cursor-pointer ${selectedProductIds.has(photo.id) ? 'border-amber-500 ring-2 ring-amber-500/10' : 'border-transparent hover:border-amber-200'}`}
+                        >
+                          <img src={photo.url} className="w-full h-full object-cover pointer-events-none" />
+                        </div>
+                        <button 
+                          onClick={(e) => handleDeleteProduct(e, photo.id)} 
+                          type="button"
+                          className="absolute -top-1 -right-1 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center z-20 shadow-md transition-all cursor-pointer hover:scale-110 active:scale-95 border-2 border-white"
+                        >
+                          <i className="fas fa-trash-can text-[10px] pointer-events-none"></i>
+                        </button>
+                      </div>
+                    ))}
+                    <label className="aspect-square rounded-xl border-2 border-dashed border-slate-200 flex flex-col items-center justify-center hover:border-amber-400 cursor-pointer text-slate-300">
+                      <i className="fas fa-plus"></i>
+                      <input type="file" onChange={e => handlePhotoUpload(e, 'product')} className="hidden" accept="image/*" />
+                    </label>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-between pt-6 border-t border-slate-50">
+              <button onClick={() => setActiveTab('foundation')} className="text-slate-400 font-bold text-sm">上一步</button>
+              <button onClick={() => setActiveTab('scenario')} className="flex items-center gap-2 px-8 py-4 bg-amber-600 text-white rounded-2xl font-black text-sm shadow-xl shadow-amber-100">
+                下一步：内容灵感 <i className="fas fa-arrow-right"></i>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'scenario' && (
+          <div className="space-y-8 animate-fade-in">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+               <div className="space-y-4">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><i className="fas fa-layer-group text-amber-500"></i> 维度 A：推荐官视野</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {BRAND_CATEGORIES.map(c => (
+                      <button key={c.id} onClick={() => setSelectedCategory(c.id)} className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${selectedCategory === c.id ? 'bg-amber-600 text-white border-amber-600' : 'bg-white border-slate-100'}`}>
+                        <i className={`fas ${c.icon} text-sm mb-1`}></i>
+                        <span className="text-[10px] font-black">{c.name}</span>
+                        <span className={`text-[8px] opacity-70 text-center leading-tight ${selectedCategory === c.id ? 'text-amber-50' : 'text-slate-400'}`}>{c.description}</span>
+                      </button>
+                    ))}
+                  </div>
+               </div>
+               <div className="space-y-4">
+                  <span className="text-[10px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-2"><i className="fas fa-mug-hot text-orange-500"></i> 维度 B：推荐官日常</span>
+                  <div className="grid grid-cols-3 gap-2">
+                    {PERSONAL_CATEGORIES.map(c => (
+                      <button key={c.id} onClick={() => setSelectedCategory(c.id)} className={`p-3 rounded-xl border-2 flex flex-col items-center gap-1 transition-all ${selectedCategory === c.id ? 'bg-orange-600 text-white border-orange-600' : 'bg-white border-slate-100'}`}>
+                        <i className={`fas ${c.icon} text-sm mb-1`}></i>
+                        <span className="text-[10px] font-black">{c.name}</span>
+                        <span className={`text-[8px] opacity-70 text-center leading-tight ${selectedCategory === c.id ? 'text-orange-50' : 'text-slate-400'}`}>{c.description}</span>
+                      </button>
+                    ))}
+                  </div>
+               </div>
+            </div>
+            <div className="space-y-4 pt-4 border-t border-slate-50">
+              <label className="block text-base font-black text-slate-800 flex items-center gap-2"><i className="fas fa-pen-nib text-amber-500"></i>记录此刻的黄关灵感...</label>
+              <textarea value={scenario} onChange={e => setScenario(e.target.value)} placeholder="描述此时此刻的场景或心情..." className="w-full h-32 p-6 bg-slate-50 border border-slate-200 rounded-3xl focus:ring-2 focus:ring-amber-500 outline-none text-slate-700 text-sm leading-relaxed resize-none" />
+            </div>
+            <div className="flex justify-between items-center pt-6">
+              <button onClick={() => setActiveTab('visual')} className="text-slate-400 font-bold text-sm">上一步</button>
+              <button onClick={handleGenerateClick} disabled={!scenario.trim() || isLoading} className="px-12 py-5 bg-amber-600 hover:bg-amber-700 disabled:bg-amber-300 text-white rounded-[2rem] font-black shadow-xl shadow-amber-100 transition-all flex items-center justify-center gap-3 text-lg">
+                {isLoading ? <i className="fas fa-circle-notch animate-spin"></i> : <i className="fas fa-wand-magic-sparkles"></i>}开启超级定制
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

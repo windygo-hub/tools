@@ -9,18 +9,23 @@ export enum WorkflowStep {
 export type AspectRatio = "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
 export type ImageSize = "1K" | "2K" | "4K";
 
-// 扩展分类，涵盖品牌视角和个人视角
 export type ContentCategory = 
-  | 'PRO' | 'TESTIMONIAL' | 'PROMO' // 品牌视角
-  | 'LIFE_AESTHETIC' | 'LIFE_THOUGHT' | 'LIFE_DAILY'; // 个人视角
+  | 'PRO' | 'TESTIMONIAL' | 'PROMO' 
+  | 'LIFE_AESTHETIC' | 'LIFE_THOUGHT' | 'LIFE_DAILY';
+
+export interface User {
+  id: string;
+  username: string;
+  lastLogin: number;
+}
 
 export interface UserPersona {
   id?: string;
-  name?: string; // 人设模板名称
+  name?: string;
   identity: string;
   traits: string[];
   background: string;
-  isSystem?: boolean; // 是否为系统内置
+  isSystem?: boolean;
 }
 
 export interface PersonaCategory {
@@ -36,8 +41,24 @@ export interface LibraryItem {
   type: 'manual' | 'generated';
   copy: string;
   imageUrl?: string;
+  commentScript?: string;
   category?: string;
   createdAt: number;
+}
+
+export interface SellingPoint {
+  id: string;
+  text: string;
+}
+
+export interface ProductPhoto {
+  id: string;
+  url: string;
+}
+
+export interface StyleReference {
+  id: string;
+  url: string;
 }
 
 export interface Draft {
@@ -52,6 +73,8 @@ export interface GeneratedConcept {
   referenceImage?: string | null;
   selectedCategory?: string;
   userPersona?: UserPersona;
+  selectedProducts?: ProductPhoto[];
+  styleReferences?: StyleReference[];
 }
 
 export interface GenerationResult {

@@ -3,27 +3,23 @@ import React, { useState } from 'react';
 import { storageService } from '../services/storageService';
 
 interface FinalOutputProps {
-  imageUrl: string;
+  imageUrl?: string | null;
   copy: string;
+  commentScript: string;
   persona: string;
   onReset: () => void;
+  onBack: () => void;
 }
 
-const FinalOutput: React.FC<FinalOutputProps> = ({ imageUrl, copy, persona, onReset }) => {
+const FinalOutput: React.FC<FinalOutputProps> = ({ imageUrl, copy, commentScript, persona, onReset, onBack }) => {
   const [isSaved, setIsSaved] = useState(false);
-
-  const downloadImage = () => {
-    const link = document.createElement('a');
-    link.href = imageUrl;
-    link.download = `黄酒生活美学-${new Date().getTime()}.png`;
-    link.click();
-  };
 
   const handleSaveToLibrary = () => {
     storageService.saveItem({
       type: 'generated',
       copy,
-      imageUrl,
+      imageUrl: imageUrl || undefined,
+      commentScript,
       category: persona
     });
     setIsSaved(true);
@@ -32,43 +28,56 @@ const FinalOutput: React.FC<FinalOutputProps> = ({ imageUrl, copy, persona, onRe
 
   return (
     <div className="animate-fade-in space-y-8 pb-12">
-      <div className="bg-white rounded-[2rem] shadow-2xl overflow-hidden border border-slate-100 max-w-xl mx-auto">
-        <div className="relative group">
-          <img src={imageUrl} alt="Generated Visual" className="w-full h-auto object-cover" />
-          <div className="absolute bottom-4 right-4 flex gap-2">
-            <button 
-              onClick={downloadImage}
-              className="bg-black/60 backdrop-blur-md text-white w-10 h-10 rounded-full flex items-center justify-center hover:bg-black/80 transition-all"
-            >
-              <i className="fas fa-download text-sm"></i>
-            </button>
+      <div className="bg-white rounded-[2.5rem] shadow-2xl overflow-hidden border border-slate-100 max-w-xl mx-auto">
+        {imageUrl ? (
+          <div className="relative">
+            <img src={imageUrl} alt="Generated Visual" className="w-full h-auto object-cover" />
           </div>
-        </div>
+        ) : (
+          <div className="h-24 bg-gradient-to-r from-amber-500 to-amber-600 flex items-center justify-center">
+             <i className="fas fa-feather text-white text-3xl opacity-50"></i>
+          </div>
+        )}
         
-        <div className="p-8">
-          <div className="flex items-center gap-3 mb-6">
-            <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center text-amber-600 text-xs font-bold">
-              主理
+        <div className="p-10 space-y-8">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 bg-amber-100 rounded-2xl flex items-center justify-center text-amber-600">
+              <i className="fas fa-wine-bottle"></i>
             </div>
             <div className="flex flex-col">
-              <span className="text-sm font-black text-slate-800">黄酒生活美学传播者</span>
-              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5">Lifestyle Sharing · Just Now</span>
+              <span className="text-base font-black text-slate-800">黄酒生活美学推荐官</span>
+              <span className="text-[10px] text-slate-400 font-bold uppercase tracking-[0.2em]">Authentic Sharing · Now</span>
             </div>
           </div>
-          <p className="text-lg text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">
-            {copy}
-          </p>
-          <div className="mt-8 pt-6 border-t border-slate-50 flex items-center justify-between">
-            <div className="flex gap-6 text-slate-300">
-              <i className="far fa-heart hover:text-red-500 cursor-pointer transition-colors text-lg"></i>
-              <i className="far fa-comment hover:text-amber-500 cursor-pointer transition-colors text-lg"></i>
-              <i className="far fa-share-from-square hover:text-amber-500 cursor-pointer transition-colors text-lg"></i>
+
+          <div className="space-y-4">
+            <div className="relative">
+              <i className="fas fa-quote-left absolute -top-4 -left-4 text-amber-100 text-3xl"></i>
+              <p className="text-xl text-slate-700 leading-relaxed font-serif italic relative z-10">
+                {copy}
+              </p>
             </div>
+            <div className="text-[10px] text-slate-300 font-bold flex items-center gap-2">
+              <span className="w-10 h-px bg-slate-100"></span>
+              {copy.length} 字文案
+            </div>
+          </div>
+
+          <div className="bg-amber-50/50 p-6 rounded-3xl border border-amber-100/50 space-y-3">
+             <div className="flex items-center gap-2 text-[10px] font-black text-amber-600 uppercase tracking-widest">
+                <i className="fas fa-comment-dots"></i> 互动脚本
+             </div>
+             <p className="text-xs text-amber-900 leading-relaxed font-medium whitespace-pre-wrap">
+                {commentScript}
+             </p>
+          </div>
+
+          <div className="pt-6 border-t border-slate-50 flex items-center justify-end">
             <button 
               onClick={handleSaveToLibrary}
               disabled={isSaved}
-              className={`text-xs font-bold px-5 py-2.5 rounded-full transition-all flex items-center gap-2 ${
-                isSaved ? 'bg-green-100 text-green-600' : 'bg-amber-50 text-amber-600 hover:bg-amber-600 hover:text-white'
+              className={`text-xs font-black px-8 py-3 rounded-2xl transition-all flex items-center gap-2 ${
+                isSaved ? 'bg-green-500 text-white' : 'bg-slate-900 text-white hover:bg-amber-600'
               }`}
             >
               <i className={`fas ${isSaved ? 'fa-check' : 'fa-bookmark'}`}></i>
@@ -79,21 +88,11 @@ const FinalOutput: React.FC<FinalOutputProps> = ({ imageUrl, copy, persona, onRe
       </div>
 
       <div className="flex justify-center gap-4">
-        <button
-          onClick={onReset}
-          className="px-8 py-4 bg-amber-600 text-white rounded-2xl font-bold hover:bg-amber-700 transition-all shadow-xl shadow-amber-100 flex items-center gap-2"
-        >
-          <i className="fas fa-rotate-left"></i>
-          记录下一刻
+        <button onClick={onBack} className="px-8 py-5 text-slate-400 font-black hover:bg-slate-100 rounded-3xl transition-all">
+          返回修改
         </button>
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(copy);
-          }}
-          className="px-8 py-4 bg-white border border-slate-200 text-slate-700 rounded-2xl font-bold hover:bg-slate-50 transition-all flex items-center gap-2"
-        >
-          <i className="fas fa-copy"></i>
-          复制文案
+        <button onClick={onReset} className="px-10 py-5 bg-amber-600 text-white rounded-3xl font-black hover:bg-amber-700 transition-all shadow-2xl shadow-amber-100">
+          开启新的灵感
         </button>
       </div>
     </div>
